@@ -1,0 +1,54 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ACCOUNT_ID: 889708302949
+    AWS_REGION: ap-south-1
+    IMAGE_NAME: auction-auth-service
+    CONTAINER_NAME: auction-auth-service
+    
+    
+phases:
+  install:
+    runtime-versions:
+      java: corretto8
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - echo $AWS_DEFAULT_REGION
+      - echo $CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo $REPOSITORY_URI
+      - aws --version
+      - export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
+      - echo $TAG
+      - IMAGE_URI=${REPOSITORY_URI}:${TAG}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo $IMAGE_URI
+      - mvn clean package -Ddockerfile.skip
+      - echo Building the Docker image...
+      - docker build --tag $IMAGE_URI .
+      - echo 'build successful'
+  post_build:
+    commands:
+      - printenv
+      - echo Build completed on `date`
+      - echo $(docker images)
+      - echo Pushing docker image
+      - docker push $IMAGE_URI
+      - echo push completed
+      - echo $CONTAINER_NAME
+      - echo $IMAGE_URI
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $IMAGE_URI > imagedefinitions.json
+artifacts:
+  files:
+    - target/auction-auth-service.jar
+  discard-paths: yes
+
+cache:
+  paths:
+    - '/root/.m2/**/*'
